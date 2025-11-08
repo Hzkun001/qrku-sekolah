@@ -13,12 +13,12 @@
       theme: {
         extend: {
           colors: {
-            base:   '#FAFAFA',   // background
-            paper:  '#FFFFFF',   // cards
-            ink:    '#0A0A0A',   // text
-            soft:   '#6B7280',   // secondary text (slate-500-ish)
-            line:   '#E5E7EB',   // borders
-            accent: '#6C9EE6',   // muted blue accent (minimalis, bukan warna pokok ngejreng)
+            base:   '#FAFAFA',   /* background */
+            paper:  '#FFFFFF',   /* cards */
+            ink:    '#0A0A0A',   /* text */
+            soft:   '#6B7280',   /* secondary text */
+            line:   '#E5E7EB',   /* borders */
+            accent: '#6C9EE6',   /* muted blue accent */
             ok:     '#22C55E',
             warn:   '#F59E0B',
             danger: '#EF4444',
@@ -42,16 +42,13 @@
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 
   <style>
-    /* Light only — gunakan var dan motion halus */
-    :root{
-      --ring: 0 0 0 3px rgba(108,158,230,.25);
-    }
+    :root{ --ring: 0 0 0 3px rgba(108,158,230,.25); }
     html,body{min-height:100dvh;background:#FAFAFA}
     .btn {
-      transition: transform .16s var(--ease, cubic-bezier(.16,1,.3,1)), 
-                  background-color .2s ease, 
-                  color .2s ease, 
-                  box-shadow .2s ease, 
+      transition: transform .16s var(--ease, cubic-bezier(.16,1,.3,1)),
+                  background-color .2s ease,
+                  color .2s ease,
+                  box-shadow .2s ease,
                   border-color .2s ease;
       will-change: transform;
     }
@@ -68,7 +65,7 @@
 </head>
 <body class="text-ink antialiased">
 
-  <!-- NAV BAR (minimal) -->
+  <!-- NAV BAR -->
   <header class="sticky top-0 z-20 backdrop-blur bg-base/70 border-b border-line">
     <div class="max-w-4xl mx-auto w-full px-5 py-3 flex items-center gap-3">
       <div class="font-semibold text-[clamp(16px,2.8vw,20px)] tracking-tight">Absensi</div>
@@ -99,11 +96,12 @@
 
     <!-- CONTROLS -->
     <section class="mt-4 grid grid-cols-2 gap-3">
-      <!-- segmented MASUK/PULANG -->
+      <!-- segmented MASUK/SHOLAT/PULANG -->
       <div class="col-span-2">
         <div class="seg inline-flex w-full bg-white border border-line rounded-full p-1 shadow-sm">
-          <button id="btnMasuk"  class="btn w-1/2 px-5 py-3 rounded-full text-[clamp(14px,2.7vw,16px)] font-semibold data-[on=true]:bg-accent data-[on=true]:text-white focus-ring" data-on="true" aria-pressed="true">MASUK</button>
-          <button id="btnPulang" class="btn w-1/2 px-5 py-3 rounded-full text-[clamp(14px,2.7vw,16px)] font-semibold data-[on=true]:bg-accent data-[on=true]:text-white focus-ring" aria-pressed="false">PULANG</button>
+          <button id="btnMasuk"  class="btn w-1/3 px-5 py-3 rounded-full text-[clamp(14px,2.7vw,16px)] font-semibold data-[on=true]:bg-accent data-[on=true]:text-white focus-ring" data-on="true" aria-pressed="true">MASUK</button>
+          <button id="btnSholat" class="btn w-1/3 px-5 py-3 rounded-full text-[clamp(14px,2.7vw,16px)] font-semibold data-[on=true]:bg-accent data-[on=true]:text-white focus-ring" aria-pressed="false">SHOLAT</button>
+          <button id="btnPulang" class="btn w-1/3 px-5 py-3 rounded-full text-[clamp(14px,2.7vw,16px)] font-semibold data-[on=true]:bg-accent data-[on=true]:text-white focus-ring" aria-pressed="false">PULANG</button>
         </div>
       </div>
 
@@ -141,7 +139,7 @@
     </section>
   </main>
 
-  <!-- TOAST (minimal) -->
+  <!-- TOAST -->
   <div id="toast" class="hidden fixed left-1/2 -translate-x-1/2 bottom-[calc(16px+env(safe-area-inset-bottom))] px-4 py-2 rounded-xl bg-ink text-white shadow-press text-[14px]"></div>
 
   <script>
@@ -159,7 +157,7 @@
     const els = {
       video:$('video'), canvas:$('canvas'), badge:$('badge'),
       camSel:$('camera'), resume:$('resume'), pause:$('pause'), reset:$('reset'), flash:$('flash'),
-      btnMasuk:$('btnMasuk'), btnPulang:$('btnPulang'),
+      btnMasuk:$('btnMasuk'), btnSholat:$('btnSholat'), btnPulang:$('btnPulang'),
       infoBox:$('infoBox'), iNama:$('iNama'), iKelas:$('iKelas'), iStatus:$('iStatus'), iWaktu:$('iWaktu'),
       waRow:$('waRow'), iWA:$('iWA'),
       log:$('log'), clearLog:$('clearLog'),
@@ -175,11 +173,14 @@
     let lastCode='', lastAt=0;
     let status = localStorage.getItem('absensi_status') || 'MASUK';
 
-    // Segmented UI
+    // Segmented UI (MASUK | SHOLAT | PULANG)
     function setSeg(s){
       status = s; localStorage.setItem('absensi_status', s);
-      els.btnMasuk.dataset.on = (s==='MASUK'); els.btnPulang.dataset.on = (s==='PULANG');
-      els.btnMasuk.setAttribute('aria-pressed', String(s==='MASUK'));
+      els.btnMasuk.dataset.on  = (s==='MASUK');
+      els.btnSholat.dataset.on = (s==='SHOLAT');
+      els.btnPulang.dataset.on = (s==='PULANG');
+      els.btnMasuk.setAttribute('aria-pressed',  String(s==='MASUK'));
+      els.btnSholat.setAttribute('aria-pressed', String(s==='SHOLAT'));
       els.btnPulang.setAttribute('aria-pressed', String(s==='PULANG'));
       els.iStatus.textContent = s;
     }
@@ -353,7 +354,8 @@
           const ts = json.time || new Date().toLocaleString();
           els.iWaktu.textContent  = ts;
 
-          if(status==='PULANG'){
+          // WA: tampilkan pada MASUK & PULANG (kalau backend kirim objek wa)
+          if(status==='MASUK' || status==='PULANG'){
             const wa = json.wa;
             els.waRow.classList.remove('hidden');
             const sent = !!wa?.sent;
@@ -379,7 +381,8 @@
     /***************
      * EVENTS
      ***************/
-    $('btnMasuk').addEventListener('click', ()=> setSeg('MASUK'));
+    $('btnMasuk').addEventListener('click',  ()=> setSeg('MASUK'));
+    $('btnSholat').addEventListener('click', ()=> setSeg('SHOLAT'));
     $('btnPulang').addEventListener('click', ()=> setSeg('PULANG'));
 
     els.resume.addEventListener('click', async ()=>{ await enumerateCameras(); await startCamera(); });
