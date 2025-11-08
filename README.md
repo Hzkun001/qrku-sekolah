@@ -20,3 +20,9 @@ Proyek ini menyediakan sistem absensi ringan yang memanfaatkan QR Code untuk men
 - Pencatatan langsung ke Google Sheets sehingga mudah diaudit.
 - Otomatis mengabari orang tua saat siswa pulang.
 - Dapat diperluas menjadi PWA untuk pemakaian offline atau ditambah dashboard statistik di masa depan.
+
+## Pengembangan Berikutnya
+- Menambahkan dashboard monitoring absensi harian/mingguan.
+- Menyimpan histori notifikasi WhatsApp untuk pelacakan.
+- Integrasi caching lokal atau PWA agar scanner tetap bisa dipakai saat koneksi terbatas.
+
