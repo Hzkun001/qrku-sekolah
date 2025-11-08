@@ -1,212 +1,397 @@
 <!doctype html>
 <html lang="id">
 <head>
-  <meta charset="utf-8">
-  <title>Scanner Absensi</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="color-scheme" content="light dark">
+  <meta charset="utf-8" />
+  <title>Absensi • QR Scanner</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="color-scheme" content="light" />
+
+  <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
-      theme:{ extend:{
-        colors:{ ink:'#0b0b0c', card:'#0f1216', soft:'#94a3b8', accent:'#0ea5e9', ok:'#22c55e', warn:'#f59e0b', danger:'#ef4444' },
-        boxShadow:{ card:'0 10px 30px rgba(0,0,0,.16)' }
-      }}
+      theme: {
+        extend: {
+          colors: {
+            base:   '#FAFAFA',   // background
+            paper:  '#FFFFFF',   // cards
+            ink:    '#0A0A0A',   // text
+            soft:   '#6B7280',   // secondary text (slate-500-ish)
+            line:   '#E5E7EB',   // borders
+            accent: '#6C9EE6',   // muted blue accent (minimalis, bukan warna pokok ngejreng)
+            ok:     '#22C55E',
+            warn:   '#F59E0B',
+            danger: '#EF4444',
+          },
+          boxShadow: {
+            card: '0 10px 30px rgba(17,24,39,.08)',
+            press:'0 6px 18px rgba(17,24,39,.10)',
+          },
+          borderRadius: {
+            xl2: '1.25rem'
+          },
+          transitionTimingFunction: {
+            easey: 'cubic-bezier(.16,1,.3,1)'
+          }
+        }
+      }
     }
   </script>
+
+  <!-- jsQR -->
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+
   <style>
-    html,body{margin:0;padding:0;width:100vw;min-height:100vh;overflow-x:hidden;-webkit-text-size-adjust:100%!important}
+    /* Light only — gunakan var dan motion halus */
+    :root{
+      --ring: 0 0 0 3px rgba(108,158,230,.25);
+    }
+    html,body{min-height:100dvh;background:#FAFAFA}
+    .btn {
+      transition: transform .16s var(--ease, cubic-bezier(.16,1,.3,1)), 
+                  background-color .2s ease, 
+                  color .2s ease, 
+                  box-shadow .2s ease, 
+                  border-color .2s ease;
+      will-change: transform;
+    }
+    .btn:active { transform: scale(.985); }
+    .btn:hover:not(:disabled) { box-shadow: 0 8px 22px rgba(17,24,39,.10); }
+    .seg button { transition: background-color .2s ease, color .2s ease, transform .16s var(--ease, cubic-bezier(.16,1,.3,1)); }
+    .seg button:active { transform: scale(.98); }
+    .focus-ring:focus-visible { box-shadow: var(--ring); outline: none; }
     @media (prefers-reduced-motion:no-preference){
-      .pulse-soft{animation:pulse 2.2s ease-in-out infinite alternate}
-      @keyframes pulse{from{box-shadow:0 0 0 9999px rgba(0,0,0,.38) inset} to{box-shadow:0 0 0 9999px rgba(0,0,0,.30) inset}}
+      .scan-mask{box-shadow: 0 0 0 9999px rgba(0,0,0,.28) inset; animation:pulse 2.2s ease-in-out infinite alternate}
+      @keyframes pulse{from{box-shadow:0 0 0 9999px rgba(0,0,0,.34) inset} to{box-shadow:0 0 0 9999px rgba(0,0,0,.22) inset}}
     }
   </style>
 </head>
-<body class="bg-slate-50 dark:bg-ink text-slate-900 dark:text-slate-100 antialiased min-h-[100dvh] flex flex-col">
-  <header class="sticky top-0 z-10 backdrop-blur bg-slate-50/80 dark:bg-ink/80 border-b border-slate-200/60 dark:border-white/10">
-    <div class="w-full px-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] py-3 flex items-center gap-3">
-      <div class="font-semibold text-lg">Absensi</div>
-      <div class="text-soft text-base">Scanner</div>
-      <div class="ml-auto flex items-center gap-2 text-sm">
-        <span id="net-dot" class="inline-block size-2 rounded-full bg-danger"></span>
-        <span id="net-text" class="text-soft">Offline</span>
+<body class="text-ink antialiased">
+
+  <!-- NAV BAR (minimal) -->
+  <header class="sticky top-0 z-20 backdrop-blur bg-base/70 border-b border-line">
+    <div class="max-w-4xl mx-auto w-full px-5 py-3 flex items-center gap-3">
+      <div class="font-semibold text-[clamp(16px,2.8vw,20px)] tracking-tight">Absensi</div>
+      <div class="text-soft text-[clamp(13px,2.3vw,15px)]">QR Scanner</div>
+      <div class="ml-auto flex items-center gap-2 text-[13px]">
+        <span id="net-dot" class="inline-block size-2.5 rounded-full bg-danger"></span>
+        <span id="net-text" class="text-soft select-none">Offline</span>
       </div>
     </div>
   </header>
 
-  <main class="w-screen flex-1">
-    <section class="w-full">
-      <div class="bg-white dark:bg-card">
-        <!-- VIDEO besar, full-bleed -->
-        <div class="relative border-y border-slate-200/70 dark:border-white/10 overflow-hidden bg-black">
-          <video id="video" class="block w-full aspect-[4/5] sm:aspect-video object-cover" autoplay playsinline muted></video>
-          <div class="pointer-events-none absolute inset-0">
-            <div class="absolute left-[6%] right-[6%] bottom-[14%] top-auto rounded-xl border-2 border-accent/90 outline outline-1 outline-accent/30 shadow-[0_0_0_9999px_rgba(0,0,0,.35)_inset] pulse-soft"></div>
-          </div>
-          <canvas id="canvas" class="hidden"></canvas>
+  <main class="max-w-4xl mx-auto w-full px-5 pt-5 pb-20">
+    <!-- VIEWFINDER -->
+    <section class="relative bg-black rounded-xl2 border border-line shadow-card overflow-hidden">
+      <video id="video" class="block w-full aspect-[9/16] sm:aspect-[16/9] object-cover" autoplay playsinline muted></video>
+
+      <!-- Mask & frame -->
+      <div class="pointer-events-none absolute inset-0">
+        <div class="absolute left-[6%] right-[6%] bottom-[14%] top-auto rounded-[18px] border-2 border-accent/80 outline outline-1 outline-accent/30 scan-mask"></div>
+      </div>
+
+      <!-- Status badge -->
+      <div id="badge" class="absolute top-3 right-3 text-[12px] px-2 py-1 rounded-md bg-black/60 text-white">Init…</div>
+
+      <!-- Hidden canvas -->
+      <canvas id="canvas" class="hidden"></canvas>
+    </section>
+
+    <!-- CONTROLS -->
+    <section class="mt-4 grid grid-cols-2 gap-3">
+      <!-- segmented MASUK/PULANG -->
+      <div class="col-span-2">
+        <div class="seg inline-flex w-full bg-white border border-line rounded-full p-1 shadow-sm">
+          <button id="btnMasuk"  class="btn w-1/2 px-5 py-3 rounded-full text-[clamp(14px,2.7vw,16px)] font-semibold data-[on=true]:bg-accent data-[on=true]:text-white focus-ring" data-on="true" aria-pressed="true">MASUK</button>
+          <button id="btnPulang" class="btn w-1/2 px-5 py-3 rounded-full text-[clamp(14px,2.7vw,16px)] font-semibold data-[on=true]:bg-accent data-[on=true]:text-white focus-ring" aria-pressed="false">PULANG</button>
         </div>
+      </div>
 
-        <!-- Kontrol minimal -->
-        <div class="px-4 py-4 grid grid-cols-2 gap-3 max-w-screen-sm mx-auto">
-          <div class="col-span-2">
-            <div class="inline-flex w-full bg-slate-100/70 dark:bg-white/5 border border-slate-200/70 dark:border-white/10 rounded-full p-1">
-              <button id="btnMasuk"  class="w-1/2 px-5 py-3 rounded-full text-lg font-semibold transition-colors data-[on=true]:bg-accent data-[on=true]:text-white" data-on="true">MASUK</button>
-              <button id="btnPulang" class="w-1/2 px-5 py-3 rounded-full text-lg font-semibold transition-colors data-[on=true]:bg-accent data-[on=true]:text-white">PULANG</button>
-            </div>
-          </div>
+      <select id="camera" class="btn col-span-2 px-4 py-3 text-[clamp(14px,2.5vw,15px)] rounded-xl border border-line bg-white focus-ring"></select>
 
-          <select id="camera" class="col-span-2 px-4 py-3 text-lg rounded-xl border border-slate-200/70 dark:border-white/10 bg-white/70 dark:bg-white/5"></select>
-          <button id="resume" class="col-span-1 px-4 py-3 text-lg rounded-xl bg-accent text-white">▶️ Mulai</button>
-          <button id="pause"  class="col-span-1 px-4 py-3 text-lg rounded-xl border border-slate-200/70 dark:border-white/10">⏸️ Pause</button>
-          <button id="reset"  class="col-span-2 px-4 py-3 text-lg rounded-xl bg-warn/90 text-white">Reset</button>
-        </div>
+      <button id="resume" class="btn col-span-1 px-4 py-3 rounded-xl bg-accent text-white font-medium text-[clamp(14px,2.6vw,15px)]">▶️ Mulai</button>
+      <button id="pause"  class="btn col-span-1 px-4 py-3 rounded-xl border border-line bg-white text-[clamp(14px,2.6vw,15px)]">⏸️ Pause</button>
+      <button id="flash"  class="btn col-span-1 px-4 py-3 rounded-xl border border-line bg-white text-[clamp(14px,2.6vw,15px)]">⚡ Flash</button>
+      <button id="reset"  class="btn col-span-1 px-4 py-3 rounded-xl bg-white border border-line text-[clamp(14px,2.6vw,15px)]">Reset</button>
+    </section>
 
-        <!-- Info hasil -->
-        <div class="px-4 pb-6 space-y-3 max-w-screen-sm mx-auto">
-          <div id="infoBox" class="hidden rounded-xl border border-slate-200/70 dark:border-white/10 p-3 bg-slate-50/60 dark:bg-white/5">
-            <div class="text-sm text-soft mb-1">Terakhir diproses</div>
-            <div class="text-base">
-              <div><span class="text-soft">Nama:</span> <b id="iNama">-</b></div>
-              <div><span class="text-soft">Kelas:</span> <b id="iKelas">-</b></div>
-              <div><span class="text-soft">Status:</span> <b id="iStatus">-</b></div>
-              <div><span class="text-soft">Waktu:</span> <b id="iWaktu">-</b></div>
-            </div>
-            <div id="waRow" class="mt-2 text-sm">
-              <span class="text-soft">Notifikasi WA:</span>
-              <span id="iWA" class="font-semibold">-</span>
-            </div>
-          </div>
+    <!-- INFO CARD -->
+    <section id="infoBox" class="hidden mt-4 bg-paper border border-line rounded-xl2 shadow-card p-4">
+      <div class="text-soft text-[13px] mb-2">Terakhir diproses</div>
+      <div class="grid sm:grid-cols-4 gap-x-6 gap-y-1 text-[clamp(14px,2.6vw,15px)]">
+        <div><span class="text-soft">Nama</span><div class="font-semibold" id="iNama">-</div></div>
+        <div><span class="text-soft">Kelas</span><div class="font-semibold" id="iKelas">-</div></div>
+        <div><span class="text-soft">Status</span><div class="font-semibold" id="iStatus">-</div></div>
+        <div><span class="text-soft">Waktu</span><div class="font-semibold" id="iWaktu">-</div></div>
+      </div>
+      <div id="waRow" class="mt-2 text-[clamp(13px,2.4vw,14px)]">
+        <span class="text-soft">Notifikasi WA:</span> <b id="iWA">-</b>
+      </div>
+    </section>
 
-          <div class="rounded-xl border border-slate-200/70 dark:border-white/10 p-3 bg-slate-50/60 dark:bg-white/5">
-            <div class="text-sm font-semibold mb-1">Tips scan cepat</div>
-            <ul class="text-sm text-soft list-disc pl-5 space-y-1">
-              <li>Jarak ±20–30 cm, QR penuh di kotak.</li>
-              <li>Hindari glare/gelap; miringkan sedikit jika mantul.</li>
-              <li>Tambahkan ke Home Screen di iPhone untuk fullscreen.</li>
-            </ul>
-          </div>
-        </div>
-
-        <div id="log" class="px-4 pb-6 text-[16px] leading-7 text-soft max-w-screen-sm mx-auto">
-          Siap scan… arahkan QR ke kotak.
-        </div>
+    <!-- LOG PANEL -->
+    <section class="mt-4 bg-paper border border-line rounded-xl2 shadow-card">
+      <div class="px-4 py-3 flex items-center justify-between">
+        <div class="font-semibold tracking-tight text-[clamp(14px,2.6vw,15px)]">Log</div>
+        <button id="clearLog" class="btn text-[13px] px-3 py-2 rounded-lg border border-line bg-white">Bersihkan</button>
+      </div>
+      <div id="log" class="px-4 pb-4 text-soft text-[clamp(13px,2.4vw,14px)] leading-7 max-h-56 overflow-auto">
+        Siap scan… arahkan QR ke kotak.
       </div>
     </section>
   </main>
 
-  <div id="toast" class="hidden fixed left-1/2 -translate-x-1/2 bottom-[calc(16px+env(safe-area-inset-bottom))] px-4 py-2 rounded-xl border border-slate-200/70 dark:border-white/10 bg-white/90 dark:bg-ink/90 shadow-card text-base"></div>
+  <!-- TOAST (minimal) -->
+  <div id="toast" class="hidden fixed left-1/2 -translate-x-1/2 bottom-[calc(16px+env(safe-area-inset-bottom))] px-4 py-2 rounded-xl bg-ink text-white shadow-press text-[14px]"></div>
 
   <script>
-    // === KONFIGURASI ===
+    /***************
+     * KONFIG
+     ***************/
     const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzs62tT9s_TlbFNezRCTDo149YgM3ANq7iRg56HT8JyR6PuAqyLXegoC0GePPoGkLWH/exec';
     const API_TOKEN  = 'Tokenku12345';
+    const COOLDOWN_MS = 1400;
 
-    // === ELEMEN ===
+    /***************
+     * ELEMEN
+     ***************/
     const $ = (id)=>document.getElementById(id);
     const els = {
-      video:$('video'), canvas:$('canvas'), camSel:$('camera'),
-      resume:$('resume'), pause:$('pause'), reset:$('reset'),
+      video:$('video'), canvas:$('canvas'), badge:$('badge'),
+      camSel:$('camera'), resume:$('resume'), pause:$('pause'), reset:$('reset'), flash:$('flash'),
       btnMasuk:$('btnMasuk'), btnPulang:$('btnPulang'),
       infoBox:$('infoBox'), iNama:$('iNama'), iKelas:$('iKelas'), iStatus:$('iStatus'), iWaktu:$('iWaktu'),
       waRow:$('waRow'), iWA:$('iWA'),
-      log:$('log'), toast:$('toast'),
-      netDot:document.getElementById('net-dot'), netText:document.getElementById('net-text')
+      log:$('log'), clearLog:$('clearLog'),
+      netDot:$('net-dot'), netText:$('net-text'),
+      toast:$('toast')
     };
-    const ctx = els.canvas.getContext('2d',{willReadFrequently:true});
+    const ctx = els.canvas.getContext('2d',{ willReadFrequently:true });
 
-    // === STATE ===
-    let stream=null, track=null, scanning=false, lastCode='', lastAt=0;
-    let status=localStorage.getItem('absensi_status')||'MASUK';
+    /***************
+     * STATE
+     ***************/
+    let stream=null, track=null, scanning=false, torchOn=false;
+    let lastCode='', lastAt=0;
+    let status = localStorage.getItem('absensi_status') || 'MASUK';
 
-    function setSeg(s){ els.btnMasuk.dataset.on=(s==='MASUK'); els.btnPulang.dataset.on=(s==='PULANG'); }
+    // Segmented UI
+    function setSeg(s){
+      status = s; localStorage.setItem('absensi_status', s);
+      els.btnMasuk.dataset.on = (s==='MASUK'); els.btnPulang.dataset.on = (s==='PULANG');
+      els.btnMasuk.setAttribute('aria-pressed', String(s==='MASUK'));
+      els.btnPulang.setAttribute('aria-pressed', String(s==='PULANG'));
+      els.iStatus.textContent = s;
+    }
     setSeg(status);
 
-    const log=(h)=> els.log.innerHTML=h.replaceAll('\n','<br>');
-    const toast=(t)=>{ els.toast.textContent=t; els.toast.classList.remove('hidden'); setTimeout(()=>els.toast.classList.add('hidden'),1400); };
-    const okFX=()=>{ if(navigator.vibrate) navigator.vibrate(50); };
-    const syncNet=()=>{ const on=navigator.onLine; els.netDot.className='inline-block size-2 rounded-full '+(on?'bg-ok':'bg-danger'); els.netText.textContent=on?'Online':'Offline'; };
+    /***************
+     * UTIL
+     ***************/
+    const setBadge = (text)=> (els.badge.textContent = text);
+
+    const toast = (t)=> {
+      els.toast.textContent = t;
+      els.toast.classList.remove('hidden');
+      clearTimeout(toast._t);
+      toast._t = setTimeout(()=> els.toast.classList.add('hidden'), 1500);
+    };
+
+    const log = (h)=> {
+      const now = new Date().toLocaleTimeString();
+      const line = `[${now}] ${h}`;
+      const div = document.createElement('div');
+      div.innerHTML = line;
+      els.log.prepend(div);
+    };
+    els.clearLog.addEventListener('click', ()=> els.log.innerHTML = '');
+
+    const syncNet=()=>{
+      const on=navigator.onLine;
+      els.netDot.className='inline-block size-2.5 rounded-full '+(on?'bg-ok':'bg-danger');
+      els.netText.textContent= on ? 'Online' : 'Offline';
+    };
     addEventListener('online',syncNet); addEventListener('offline',syncNet); syncNet();
 
-    const debounceScan=(code)=>{ const now=Date.now(), cool=1400; if(now-lastAt<cool) return true; if(code===lastCode) return true; lastAt=now; lastCode=code; return false; };
-
-    async function enumerateCameras(){
-      const devices=await navigator.mediaDevices.enumerateDevices();
-      const cams=devices.filter(d=>d.kind==='videoinput');
-      els.camSel.innerHTML=''; cams.forEach((c,i)=>{ const o=document.createElement('option'); o.value=c.deviceId; o.textContent=c.label||`Kamera ${i+1}`; els.camSel.appendChild(o); });
-      const saved=localStorage.getItem('absensi_camId'); if(saved && cams.some(c=>c.deviceId===saved)) els.camSel.value=saved;
+    // Notif suara (synth, ringan)
+    const AC = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = AC ? new AC() : null;
+    function successSound(){
+      if(!audioCtx) return;
+      if(audioCtx.state==='suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const g   = audioCtx.createGain();
+      const now = audioCtx.currentTime;
+      osc.type='triangle';
+      osc.frequency.setValueAtTime(540, now);
+      osc.frequency.exponentialRampToValueAtTime(980, now + 0.18);
+      g.gain.setValueAtTime(0.0001, now);
+      g.gain.exponentialRampToValueAtTime(0.32, now + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+      osc.connect(g); g.connect(audioCtx.destination);
+      osc.start(now); osc.stop(now + 0.5);
     }
+    // unlock audio di first interaction
+    ['pointerdown','keydown'].forEach(ev => addEventListener(ev, ()=>{ if(audioCtx?.state==='suspended') audioCtx.resume(); }, { once:true }));
+
+    const cooledDown = (code)=>{
+      const now = Date.now();
+      if(now - lastAt < COOLDOWN_MS) return false;
+      if(code === lastCode) return false;
+      lastAt = now; lastCode = code;
+      return true;
+    };
+
+    /***************
+     * CAMERA
+     ***************/
+    async function enumerateCameras(){
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const cams = devices.filter(d=>d.kind==='videoinput');
+      els.camSel.innerHTML='';
+      cams.forEach((c,i)=>{
+        const o=document.createElement('option');
+        o.value=c.deviceId; o.textContent=c.label||`Kamera ${i+1}`;
+        els.camSel.appendChild(o);
+      });
+      const saved=localStorage.getItem('absensi_camId');
+      if(saved && cams.some(c=>c.deviceId===saved)) els.camSel.value = saved;
+      if(!cams.length) setBadge('Kamera tidak tersedia');
+    }
+
     async function startCamera(){
       try{
         if(stream) stream.getTracks().forEach(t=>t.stop());
-        const id=els.camSel.value||undefined;
-        const constraints=id?{video:{deviceId:{exact:id}},audio:false}:{video:{facingMode:'environment'},audio:false};
-        stream=await navigator.mediaDevices.getUserMedia(constraints);
-        els.video.srcObject=stream; track=stream.getVideoTracks()[0];
-        localStorage.setItem('absensi_camId', track?.getSettings()?.deviceId||'');
-        await new Promise(r=> els.video.onloadedmetadata=r);
-        scanning=true; requestAnimationFrame(tick);
+        const id = els.camSel.value || undefined;
+        const constraints = id
+          ? { video:{ deviceId:{ exact:id }, focusMode:'continuous' }, audio:false }
+          : { video:{ facingMode:'environment', focusMode:'continuous' }, audio:false };
+
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        els.video.srcObject = stream;
+        track = stream.getVideoTracks()[0];
+
+        const usedId = track?.getSettings?.().deviceId || '';
+        if(usedId) localStorage.setItem('absensi_camId', usedId);
+
+        await new Promise(r => els.video.onloadedmetadata = r);
+        els.canvas.width  = els.video.videoWidth;
+        els.canvas.height = els.video.videoHeight;
+
+        scanning = true;
+        setBadge('Kamera aktif');
         log('Siap. Arahkan QR ke kotak.');
-      }catch(e){ log('Izin kamera ditolak / tidak tersedia.<br><span class="text-soft">'+e.message+'</span>'); }
+        requestAnimationFrame(tick);
+      }catch(e){
+        log(`Izin kamera ditolak / tidak tersedia. <span class="text-soft">${e.message}</span>`);
+        setBadge('Kamera gagal');
+        scanning = false;
+      }
     }
 
-    async function tick(){
+    function stopCamera(){
+      scanning = false;
+      if(stream) stream.getTracks().forEach(t=>t.stop());
+      stream = null; track = null;
+      torchOn = false;
+      setBadge('Idle');
+    }
+
+    async function toggleTorch(){
+      if(!track) return toast('Flash tidak tersedia');
+      const cap = track.getCapabilities?.();
+      if(!cap || !cap.torch) return toast('Device tidak support flash');
+      torchOn = !torchOn;
+      await track.applyConstraints({ advanced:[{ torch: torchOn }] });
+      toast('Flash: ' + (torchOn?'ON':'OFF'));
+    }
+
+    /***************
+     * SCAN LOOP
+     ***************/
+    function tick(){
       if(!scanning) return;
-      if(els.video.readyState===els.video.HAVE_ENOUGH_DATA){
-        els.canvas.width=els.video.videoWidth; els.canvas.height=els.video.videoHeight;
-        const w=els.canvas.width, h=els.canvas.height;
-        ctx.drawImage(els.video,0,0,w,h);
-        const img=ctx.getImageData(0,0,w,h);
-        const code=jsQR(img.data,img.width,img.height);
-        if(code && code.data){
-          const scanned=code.data.trim();
-          if(!debounceScan(scanned)){
-            log(`Scan: <b class="text-slate-900 dark:text-white">${scanned}</b> → <b class="text-slate-900 dark:text-white">${status}</b><br><span class="text-soft">Mengirim…</span>`);
-            try{
-              const { http, json } = await postAttendance(scanned,status);
-              if(json && json.ok){
-                okFX(); toast('✓ Terkirim');
-                els.infoBox.classList.remove('hidden');
-                els.iNama.textContent=json.student?.nama||'-';
-                els.iKelas.textContent=json.student?.kelas||'-';
-                els.iStatus.textContent=status;
-                els.iWaktu.textContent=json.time||'';
-                if(status==='PULANG'){
-                  const wa=json.wa; els.waRow.classList.remove('hidden');
-                  els.iWA.textContent = wa?.sent ? 'Dikirim ke orang tua.' : ('Gagal: '+(wa?.error||'')); 
-                  els.iWA.className = wa?.sent ? 'text-ok' : 'text-danger';
-                } else { els.waRow.classList.add('hidden'); }
-                log(`✓ <b>${scanned}</b> → <b>${status}</b><br><span class="text-soft">${json.time||''}</span>`);
-              } else {
-                toast('Gagal'); log(`Gagal (${http||'ERR'})<br><span class="text-soft">${(json&&json.msg)||'Unknown error'}</span>`); setTimeout(()=>{ lastCode=''; },1000);
-              }
-            }catch(e){
-              toast('Error jaringan'); log('Error kirim:<br><span class="text-soft">'+e.message+'</span>'); setTimeout(()=>{ lastCode=''; },1000);
-            }
+
+      if(els.video.readyState === els.video.HAVE_ENOUGH_DATA){
+        const w = els.canvas.width  = els.video.videoWidth  || els.canvas.width;
+        const h = els.canvas.height = els.video.videoHeight || els.canvas.height;
+
+        ctx.drawImage(els.video, 0, 0, w, h);
+        const img = ctx.getImageData(0, 0, w, h);
+        const code = jsQR(img.data, img.width, img.height);
+        if(code?.data){
+          const scanned = code.data.trim();
+          if(cooledDown(scanned)){
+            setBadge('Memproses…');
+            log(`Scan: <b>${scanned}</b> → <b>${status}</b> <span class="text-soft">[mengirim]</span>`);
+            submit(scanned, status);
           }
         }
       }
       requestAnimationFrame(tick);
     }
 
-    // === HTTP POST ke Apps Script tanpa preflight ===
-    async function postAttendance(student_id,status){
-      // KIRIM JSON sebagai text/plain (simple request → no preflight CORS)
-      const body = JSON.stringify({ token: API_TOKEN, student_id, status });
-      const res  = await fetch(WEBAPP_URL, { method:'POST', headers:{ 'Content-Type':'text/plain' }, body });
-      const text = await res.text(); let json; try{ json=JSON.parse(text) }catch{ json={ ok:false, msg:'Bad JSON: '+text } }
-      return { http:res.status, json };
+    /***************
+     * HTTP POST (text/plain, no preflight)
+     ***************/
+    async function submit(student_id, status){
+      try{
+        const body = JSON.stringify({ token: API_TOKEN, student_id, status });
+        const res  = await fetch(WEBAPP_URL, { method:'POST', headers:{ 'Content-Type':'text/plain' }, body });
+        const text = await res.text();
+        let json; try{ json = JSON.parse(text) }catch{ json = { ok:false, msg:'Bad JSON: '+text } }
+
+        if(json.ok){
+          if(navigator.vibrate) navigator.vibrate(40);
+          successSound();
+          toast('✓ Terkirim'); setBadge('Terkirim');
+
+          els.infoBox.classList.remove('hidden');
+          els.iNama.textContent   = json.student?.nama  || '-';
+          els.iKelas.textContent  = json.student?.kelas || '-';
+          els.iStatus.textContent = status;
+          const ts = json.time || new Date().toLocaleString();
+          els.iWaktu.textContent  = ts;
+
+          if(status==='PULANG'){
+            const wa = json.wa;
+            els.waRow.classList.remove('hidden');
+            const sent = !!wa?.sent;
+            els.iWA.textContent = sent ? 'Dikirim ke orang tua.' : ('Gagal: '+(wa?.error||'')); 
+            els.iWA.className = sent ? 'text-ok font-semibold' : 'text-danger font-semibold';
+          } else {
+            els.waRow.classList.add('hidden');
+          }
+
+          log(`✓ <b>${student_id}</b> → <b>${status}</b> <span class="text-soft">[${ts}]</span>`);
+        } else {
+          toast('Gagal'); setBadge('Gagal');
+          log(`Gagal (${res.status||'ERR'}) <span class="text-soft">${json.msg||'Unknown error'}</span>`);
+          setTimeout(()=>{ lastCode=''; }, 900);
+        }
+      }catch(e){
+        toast('Error jaringan'); setBadge('Jaringan error');
+        log(`Error kirim: <span class="text-soft">${e.message}</span>`);
+        setTimeout(()=>{ lastCode=''; }, 900);
+      }
     }
 
-    // === Events ===
-    $('btnMasuk').addEventListener('click',()=>{ status='MASUK'; localStorage.setItem('absensi_status',status); setSeg(status); });
-    $('btnPulang').addEventListener('click',()=>{ status='PULANG'; localStorage.setItem('absensi_status',status); setSeg(status); });
+    /***************
+     * EVENTS
+     ***************/
+    $('btnMasuk').addEventListener('click', ()=> setSeg('MASUK'));
+    $('btnPulang').addEventListener('click', ()=> setSeg('PULANG'));
+
     els.resume.addEventListener('click', async ()=>{ await enumerateCameras(); await startCamera(); });
-    els.pause.addEventListener('click', ()=>{ scanning=false; if(stream) stream.getTracks().forEach(t=>t.stop()); log('Scanner dijeda.'); });
-    els.reset.addEventListener('click', ()=>{ lastCode=''; lastAt=0; log('Reset scanner.'); });
+    els.pause .addEventListener('click', ()=> stopCamera());
+    els.reset .addEventListener('click', ()=>{ lastCode=''; lastAt=0; toast('Reset'); log('Reset scanner.'); });
+    els.flash .addEventListener('click', ()=> toggleTorch());
     els.camSel.addEventListener('change', startCamera);
 
     (async()=>{ try{ await enumerateCameras(); }catch{} els.resume.click(); })();
+
+    addEventListener('pagehide', stopCamera);
+    addEventListener('beforeunload', stopCamera);
   </script>
 </body>
 </html>
