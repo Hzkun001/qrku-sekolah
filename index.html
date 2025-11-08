@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <title>Scanner Absensi</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme:{ extend:{
+        colors:{ ink:'#0b0b0c', card:'#0f1216', soft:'#94a3b8', accent:'#0ea5e9', ok:'#22c55e', warn:'#f59e0b', danger:'#ef4444' },
+        boxShadow:{ card:'0 10px 30px rgba(0,0,0,.16)' }
+      }}
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <style>
+    html,body{margin:0;padding:0;width:100vw;min-height:100vh;overflow-x:hidden;-webkit-text-size-adjust:100%!important}
+    @media (prefers-reduced-motion:no-preference){
+      .pulse-soft{animation:pulse 2.2s ease-in-out infinite alternate}
+      @keyframes pulse{from{box-shadow:0 0 0 9999px rgba(0,0,0,.38) inset} to{box-shadow:0 0 0 9999px rgba(0,0,0,.30) inset}}
+    }
+  </style>
+</head>
+<body class="bg-slate-50 dark:bg-ink text-slate-900 dark:text-slate-100 antialiased min-h-[100dvh] flex flex-col">
+  <header class="sticky top-0 z-10 backdrop-blur bg-slate-50/80 dark:bg-ink/80 border-b border-slate-200/60 dark:border-white/10">
+    <div class="w-full px-[max(12px,env(safe-area-inset-left))] pr-[max(12px,env(safe-area-inset-right))] py-3 flex items-center gap-3">
+      <div class="font-semibold text-lg">Absensi</div>
+      <div class="text-soft text-base">Scanner</div>
+      <div class="ml-auto flex items-center gap-2 text-sm">
+        <span id="net-dot" class="inline-block size-2 rounded-full bg-danger"></span>
+        <span id="net-text" class="text-soft">Offline</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="w-screen flex-1">
+    <section class="w-full">
+      <div class="bg-white dark:bg-card">
+        <!-- VIDEO besar, full-bleed -->
+        <div class="relative border-y border-slate-200/70 dark:border-white/10 overflow-hidden bg-black">
+          <video id="video" class="block w-full aspect-[4/5] sm:aspect-video object-cover" autoplay playsinline muted></video>
+          <div class="pointer-events-none absolute inset-0">
+            <div class="absolute left-[6%] right-[6%] bottom-[14%] top-auto rounded-xl border-2 border-accent/90 outline outline-1 outline-accent/30 shadow-[0_0_0_9999px_rgba(0,0,0,.35)_inset] pulse-soft"></div>
+          </div>
+          <canvas id="canvas" class="hidden"></canvas>
+        </div>
+
+        <!-- Kontrol minimal -->
+        <div class="px-4 py-4 grid grid-cols-2 gap-3 max-w-screen-sm mx-auto">
+          <div class="col-span-2">
+            <div class="inline-flex w-full bg-slate-100/70 dark:bg-white/5 border border-slate-200/70 dark:border-white/10 rounded-full p-1">
+              <button id="btnMasuk"  class="w-1/2 px-5 py-3 rounded-full text-lg font-semibold transition-colors data-[on=true]:bg-accent data-[on=true]:text-white" data-on="true">MASUK</button>
+              <button id="btnPulang" class="w-1/2 px-5 py-3 rounded-full text-lg font-semibold transition-colors data-[on=true]:bg-accent data-[on=true]:text-white">PULANG</button>
+            </div>
+          </div>
+
+          <select id="camera" class="col-span-2 px-4 py-3 text-lg rounded-xl border border-slate-200/70 dark:border-white/10 bg-white/70 dark:bg-white/5"></select>
+          <button id="resume" class="col-span-1 px-4 py-3 text-lg rounded-xl bg-accent text-white">▶️ Mulai</button>
+          <button id="pause"  class="col-span-1 px-4 py-3 text-lg rounded-xl border border-slate-200/70 dark:border-white/10">⏸️ Pause</button>
+          <button id="reset"  class="col-span-2 px-4 py-3 text-lg rounded-xl bg-warn/90 text-white">Reset</button>
+        </div>
+
+        <!-- Info hasil -->
+        <div class="px-4 pb-6 space-y-3 max-w-screen-sm mx-auto">
+          <div id="infoBox" class="hidden rounded-xl border border-slate-200/70 dark:border-white/10 p-3 bg-slate-50/60 dark:bg-white/5">
+            <div class="text-sm text-soft mb-1">Terakhir diproses</div>
+            <div class="text-base">
+              <div><span class="text-soft">Nama:</span> <b id="iNama">-</b></div>
+              <div><span class="text-soft">Kelas:</span> <b id="iKelas">-</b></div>
+              <div><span class="text-soft">Status:</span> <b id="iStatus">-</b></div>
+              <div><span class="text-soft">Waktu:</span> <b id="iWaktu">-</b></div>
+            </div>
+            <div id="waRow" class="mt-2 text-sm">
+              <span class="text-soft">Notifikasi WA:</span>
+              <span id="iWA" class="font-semibold">-</span>
+            </div>
+          </div>
+
+          <div class="rounded-xl border border-slate-200/70 dark:border-white/10 p-3 bg-slate-50/60 dark:bg-white/5">
+            <div class="text-sm font-semibold mb-1">Tips scan cepat</div>
+            <ul class="text-sm text-soft list-disc pl-5 space-y-1">
+              <li>Jarak ±20–30 cm, QR penuh di kotak.</li>
+              <li>Hindari glare/gelap; miringkan sedikit jika mantul.</li>
+              <li>Tambahkan ke Home Screen di iPhone untuk fullscreen.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div id="log" class="px-4 pb-6 text-[16px] leading-7 text-soft max-w-screen-sm mx-auto">
+          Siap scan… arahkan QR ke kotak.
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="hidden fixed left-1/2 -translate-x-1/2 bottom-[calc(16px+env(safe-area-inset-bottom))] px-4 py-2 rounded-xl border border-slate-200/70 dark:border-white/10 bg-white/90 dark:bg-ink/90 shadow-card text-base"></div>
+
+  <script>
+    // === KONFIGURASI ===
+    const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzs62tT9s_TlbFNezRCTDo149YgM3ANq7iRg56HT8JyR6PuAqyLXegoC0GePPoGkLWH/exec';
+    const API_TOKEN  = 'Tokenku12345';
+
+    // === ELEMEN ===
+    const $ = (id)=>document.getElementById(id);
+    const els = {
+      video:$('video'), canvas:$('canvas'), camSel:$('camera'),
+      resume:$('resume'), pause:$('pause'), reset:$('reset'),
+      btnMasuk:$('btnMasuk'), btnPulang:$('btnPulang'),
+      infoBox:$('infoBox'), iNama:$('iNama'), iKelas:$('iKelas'), iStatus:$('iStatus'), iWaktu:$('iWaktu'),
+      waRow:$('waRow'), iWA:$('iWA'),
+      log:$('log'), toast:$('toast'),
+      netDot:document.getElementById('net-dot'), netText:document.getElementById('net-text')
+    };
+    const ctx = els.canvas.getContext('2d',{willReadFrequently:true});
+
+    // === STATE ===
+    let stream=null, track=null, scanning=false, lastCode='', lastAt=0;
+    let status=localStorage.getItem('absensi_status')||'MASUK';
+
+    function setSeg(s){ els.btnMasuk.dataset.on=(s==='MASUK'); els.btnPulang.dataset.on=(s==='PULANG'); }
+    setSeg(status);
+
+    const log=(h)=> els.log.innerHTML=h.replaceAll('\n','<br>');
+    const toast=(t)=>{ els.toast.textContent=t; els.toast.classList.remove('hidden'); setTimeout(()=>els.toast.classList.add('hidden'),1400); };
+    const okFX=()=>{ if(navigator.vibrate) navigator.vibrate(50); };
+    const syncNet=()=>{ const on=navigator.onLine; els.netDot.className='inline-block size-2 rounded-full '+(on?'bg-ok':'bg-danger'); els.netText.textContent=on?'Online':'Offline'; };
+    addEventListener('online',syncNet); addEventListener('offline',syncNet); syncNet();
+
+    const debounceScan=(code)=>{ const now=Date.now(), cool=1400; if(now-lastAt<cool) return true; if(code===lastCode) return true; lastAt=now; lastCode=code; return false; };
+
+    async function enumerateCameras(){
+      const devices=await navigator.mediaDevices.enumerateDevices();
+      const cams=devices.filter(d=>d.kind==='videoinput');
+      els.camSel.innerHTML=''; cams.forEach((c,i)=>{ const o=document.createElement('option'); o.value=c.deviceId; o.textContent=c.label||`Kamera ${i+1}`; els.camSel.appendChild(o); });
+      const saved=localStorage.getItem('absensi_camId'); if(saved && cams.some(c=>c.deviceId===saved)) els.camSel.value=saved;
+    }
+    async function startCamera(){
+      try{
+        if(stream) stream.getTracks().forEach(t=>t.stop());
+        const id=els.camSel.value||undefined;
+        const constraints=id?{video:{deviceId:{exact:id}},audio:false}:{video:{facingMode:'environment'},audio:false};
+        stream=await navigator.mediaDevices.getUserMedia(constraints);
+        els.video.srcObject=stream; track=stream.getVideoTracks()[0];
+        localStorage.setItem('absensi_camId', track?.getSettings()?.deviceId||'');
+        await new Promise(r=> els.video.onloadedmetadata=r);
+        scanning=true; requestAnimationFrame(tick);
+        log('Siap. Arahkan QR ke kotak.');
+      }catch(e){ log('Izin kamera ditolak / tidak tersedia.<br><span class="text-soft">'+e.message+'</span>'); }
+    }
+
+    async function tick(){
+      if(!scanning) return;
+      if(els.video.readyState===els.video.HAVE_ENOUGH_DATA){
+        els.canvas.width=els.video.videoWidth; els.canvas.height=els.video.videoHeight;
+        const w=els.canvas.width, h=els.canvas.height;
+        ctx.drawImage(els.video,0,0,w,h);
+        const img=ctx.getImageData(0,0,w,h);
+        const code=jsQR(img.data,img.width,img.height);
+        if(code && code.data){
+          const scanned=code.data.trim();
+          if(!debounceScan(scanned)){
+            log(`Scan: <b class="text-slate-900 dark:text-white">${scanned}</b> → <b class="text-slate-900 dark:text-white">${status}</b><br><span class="text-soft">Mengirim…</span>`);
+            try{
+              const { http, json } = await postAttendance(scanned,status);
+              if(json && json.ok){
+                okFX(); toast('✓ Terkirim');
+                els.infoBox.classList.remove('hidden');
+                els.iNama.textContent=json.student?.nama||'-';
+                els.iKelas.textContent=json.student?.kelas||'-';
+                els.iStatus.textContent=status;
+                els.iWaktu.textContent=json.time||'';
+                if(status==='PULANG'){
+                  const wa=json.wa; els.waRow.classList.remove('hidden');
+                  els.iWA.textContent = wa?.sent ? 'Dikirim ke orang tua.' : ('Gagal: '+(wa?.error||'')); 
+                  els.iWA.className = wa?.sent ? 'text-ok' : 'text-danger';
+                } else { els.waRow.classList.add('hidden'); }
+                log(`✓ <b>${scanned}</b> → <b>${status}</b><br><span class="text-soft">${json.time||''}</span>`);
+              } else {
+                toast('Gagal'); log(`Gagal (${http||'ERR'})<br><span class="text-soft">${(json&&json.msg)||'Unknown error'}</span>`); setTimeout(()=>{ lastCode=''; },1000);
+              }
+            }catch(e){
+              toast('Error jaringan'); log('Error kirim:<br><span class="text-soft">'+e.message+'</span>'); setTimeout(()=>{ lastCode=''; },1000);
+            }
+          }
+        }
+      }
+      requestAnimationFrame(tick);
+    }
+
+    // === HTTP POST ke Apps Script tanpa preflight ===
+    async function postAttendance(student_id,status){
+      // KIRIM JSON sebagai text/plain (simple request → no preflight CORS)
+      const body = JSON.stringify({ token: API_TOKEN, student_id, status });
+      const res  = await fetch(WEBAPP_URL, { method:'POST', headers:{ 'Content-Type':'text/plain' }, body });
+      const text = await res.text(); let json; try{ json=JSON.parse(text) }catch{ json={ ok:false, msg:'Bad JSON: '+text } }
+      return { http:res.status, json };
+    }
+
+    // === Events ===
+    $('btnMasuk').addEventListener('click',()=>{ status='MASUK'; localStorage.setItem('absensi_status',status); setSeg(status); });
+    $('btnPulang').addEventListener('click',()=>{ status='PULANG'; localStorage.setItem('absensi_status',status); setSeg(status); });
+    els.resume.addEventListener('click', async ()=>{ await enumerateCameras(); await startCamera(); });
+    els.pause.addEventListener('click', ()=>{ scanning=false; if(stream) stream.getTracks().forEach(t=>t.stop()); log('Scanner dijeda.'); });
+    els.reset.addEventListener('click', ()=>{ lastCode=''; lastAt=0; log('Reset scanner.'); });
+    els.camSel.addEventListener('change', startCamera);
+
+    (async()=>{ try{ await enumerateCameras(); }catch{} els.resume.click(); })();
+  </script>
+</body>
+</html>
